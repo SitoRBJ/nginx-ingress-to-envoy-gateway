@@ -168,10 +168,6 @@ Each Ingress produces one or more HTTPRoute (and optionally SecurityPolicy and B
 
 Paths listed in `excluded_auth_paths` (e.g. `/health`, `/metrics`) are generated as rules without OAuth.
 
-## License
-
-Add the license file you prefer (MIT, Apache 2.0, etc.) to the repo. This README does not specify a license so you can choose.
-
 ## Contributing
 
 Contributions are welcome: issues, documentation improvements, or support for more annotations/Envoy Gateway resources. Open an issue or Pull Request in the repository.
