@@ -1,0 +1,129 @@
+# =============================================================================
+# Example configuration for migrating Ingress (Nginx) to Envoy Gateway
+# =============================================================================
+# Copy this file to migrate-ingress-config.yaml and adjust values for your
+# cluster, gateways, and OIDC providers.
+# cp migrate-ingress-config.example.yaml migrate-ingress-config.yaml
+# =============================================================================
+
+# Mapping from ingressClassName (used in your Ingress resources) to Envoy Gateways.
+# Each key must match spec.ingressClassName in your Ingress resources.
+gateway_mapping:
+  # Internal gateway (traffic only within cluster/VPC)
+  internal:
+    gateway_name: "envoy-gateway-internal"
+    gateway_namespace: "gateway-system"
+    gateway_class: "envoy-internal"
+
+  # Gateway for public traffic (e.g. NLB/ALB to internet)
+  public:
+    gateway_name: "envoy-gateway-public"
+    gateway_namespace: "gateway-system"
+    gateway_class: "envoy-public"
+
+  # Example: gateway for messaging (Kafka, etc.)
+  messaging:
+    gateway_name: "envoy-gateway-messaging"
+    gateway_namespace: "gateway-system"
+    gateway_class: "envoy-messaging"
+
+# OAuth/OIDC configuration per "cluster" (logical name you pass with --cluster).
+# Useful to have different client_id/secret per environment (dev, staging, prod).
+oauth_config:
+  dev:
+    secret_name: "envoy-oidc-credentials"
+    secret_namespace: "gateway-system"
+    oidc_providers:
+      google:
+        issuer: "https://accounts.google.com"
+        client_id: "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com"
+        scopes:
+          - "openid"
+          - "email"
+          - "profile"
+        logout_path: "/logout"
+        refresh_token: true
+
+  staging:
+    secret_name: "envoy-oidc-credentials"
+    secret_namespace: "gateway-system"
+    oidc_providers:
+      google:
+        issuer: "https://accounts.google.com"
+        client_id: "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com"
+        scopes:
+          - "openid"
+          - "email"
+          - "profile"
+        logout_path: "/logout"
+        refresh_token: true
+
+  prod:
+    secret_name: "envoy-oidc-credentials"
+    secret_namespace: "gateway-system"
+    oidc_providers:
+      google:
+        issuer: "https://accounts.google.com"
+        client_id: "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com"
+        scopes:
+          - "openid"
+          - "email"
+          - "profile"
+        logout_path: "/logout"
+        refresh_token: true
+
+# Nginx Ingress annotations that the tool translates to Envoy resources.
+# No need to change unless you use custom or different annotations.
+annotation_mapping:
+  oauth_annotations:
+    - "nginx.ingress.kubernetes.io/auth-url"
+    - "nginx.ingress.kubernetes.io/auth-signin"
+    - "nginx.ingress.kubernetes.io/auth-snippet"
+
+  filter_annotations:
+    - "nginx.ingress.kubernetes.io/rewrite-target"
+    - "nginx.ingress.kubernetes.io/cors-allow-methods"
+    - "nginx.ingress.kubernetes.io/cors-allow-origin"
+    - "nginx.ingress.kubernetes.io/enable-cors"
+    - "nginx.ingress.kubernetes.io/cors-allow-headers"
+    - "nginx.ingress.kubernetes.io/cors-allow-credentials"
+    - "nginx.ingress.kubernetes.io/cors-max-age"
+    - "nginx.ingress.kubernetes.io/load-balance"
+    - "nginx.ingress.kubernetes.io/proxy-body-size"
+    - "nginx.ingress.kubernetes.io/backend-protocol"
+    - "nginx.ingress.kubernetes.io/proxy-connect-timeout"
+    - "nginx.ingress.kubernetes.io/proxy-read-timeout"
+    - "nginx.ingress.kubernetes.io/proxy-send-timeout"
+    - "nginx.ingress.kubernetes.io/permanent-redirect"
+    - "nginx.ingress.kubernetes.io/canary"
+    - "nginx.ingress.kubernetes.io/canary-by-header"
+    - "nginx.ingress.kubernetes.io/canary-by-header-value"
+    - "nginx.ingress.kubernetes.io/canary-weight"
+
+  route_annotations:
+    - "nginx.ingress.kubernetes.io/force-ssl-redirect"
+    - "nginx.ingress.kubernetes.io/ssl-redirect"
+
+# Paths that should not be protected with OAuth (e.g. health checks, metrics).
+# HTTPRoute rules without SecurityPolicy are generated for these paths.
+excluded_auth_paths:
+  - "/metrics"
+  - "/health"
+  - "/healthz"
+  - "/ready"
+
+# Backends using HTTPS: specify hostname and Secret with CA for TLS verification.
+# Key format: "namespace/servicename:port"
+backend_tls_policies:
+  # Example:
+  # "default/my-https-backend:8443":
+  #   hostname: "my-https-backend.default.svc.cluster.local"
+  #   ca_secret: "my-https-backend-ca"
+
+# Where and how generated YAML files (HTTPRoute, SecurityPolicy, etc.) are written.
+output_structure:
+  base_path: "environments"
+  templates_dir: "templates"
+  # true: organize by namespace/service (recommended for folder-based environments).
+  # false: write everything in the current directory.
+  auto_detect_structure: true
