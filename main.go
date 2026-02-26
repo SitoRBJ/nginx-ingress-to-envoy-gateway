@@ -71,6 +71,34 @@ type Migrator struct {
 	clusterName string
 }
 
+var (
+	ruleNameInvalidChars = regexp.MustCompile(`[^a-z0-9-]+`)
+	ruleNameMultiDash    = regexp.MustCompile(`-+`)
+)
+
+func sanitizeHTTPRouteRuleName(name string) string {
+	name = strings.ToLower(name)
+	name = ruleNameInvalidChars.ReplaceAllString(name, "-")
+	name = ruleNameMultiDash.ReplaceAllString(name, "-")
+	name = strings.Trim(name, "-")
+
+	// safety fallback (avoid empty)
+	if name == "" {
+		return "rule"
+	}
+
+	// optional: enforce DNS label max length (63)
+	if len(name) > 63 {
+		name = name[:63]
+		name = strings.Trim(name, "-")
+		if name == "" {
+			return "rule"
+		}
+	}
+
+	return name
+}
+
 func NewMigrator(configPath, kubeContext, clusterName string) (*Migrator, error) {
 	// Load configuration
 	data, err := os.ReadFile(configPath)
@@ -350,17 +378,18 @@ func (m *Migrator) GenerateHTTPRoute(ingress *networkingv1.Ingress, outputDir st
 			} else if pathValue == "/" {
 				sectionName = "main"
 			} else {
-				// For specific paths, generate unique name based on path
-				// Sanitize path to valid name (no /, replace with dashes)
+				// For specific paths, generate name based on path
 				cleanPath := strings.TrimPrefix(pathValue, "/")
 				cleanPath = strings.ReplaceAll(cleanPath, "/", "-")
-				// Strip characters invalid for Kubernetes names
-				cleanPath = strings.ReplaceAll(cleanPath, ".", "-")
-				cleanPath = strings.ReplaceAll(cleanPath, "_", "-")
-				if cleanPath == "" {
-					cleanPath = fmt.Sprintf("rule-%d", i)
-				}
 				sectionName = cleanPath
+			}
+
+			// Enforce: [a-z0-9]([-a-z0-9]*[a-z0-9])?
+			sectionName = sanitizeHTTPRouteRuleName(sectionName)
+
+			// Fallback if sanitization empties it
+			if sectionName == "rule" && pathValue != "/" && pathValue != "/metrics" {
+				sectionName = sanitizeHTTPRouteRuleName(fmt.Sprintf("rule-%d", i))
 			}
 
 			// Ensure uniqueness: if name already exists, add numeric suffix
@@ -446,7 +475,7 @@ func (m *Migrator) GenerateHTTPRoute(ingress *networkingv1.Ingress, outputDir st
 					},
 				},
 			},
-			"name": "block-internal",
+			"name": sanitizeHTTPRouteRuleName("block-internal"),
 		}
 
 		rules = append([]map[string]interface{}{internalRule}, rules...)
